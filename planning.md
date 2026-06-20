@@ -76,10 +76,13 @@ general evaluative claim ("worst-run franchise") → `hot_take`.
 
 ## 4. Data collection plan
 
-- **Source:** public r/nba content via Reddit's JSON endpoints (descriptive user-agent).
-  Pull **comments** (where takes actually live) from daily-discussion threads, game threads,
-  and `top`/`controversial` post listings across the past year, plus some post selftext.
-  Reproducible collector: `scripts/collect_reddit.py`.
+- **Source:** public r/nba **comments** (where takes actually live). Reddit's own JSON API is
+  IP-blocked from the build environment (403), so collection goes through **pullpush.io**, the
+  free public Reddit archive. The collector pulls 16 diversified slices (high-score comments +
+  evidence-term queries like "net rating"/"per game" + emotional-term queries like
+  "heartbroken"/"are you kidding") to surface a mix of all three classes. Reproducible:
+  `scripts/collect_reddit.py` → 1,508 cleaned comments; `scripts/prelabel.py` buckets them;
+  `scripts/build_dataset.py` produces the final balanced set.
 - **Target:** ≥ 200 examples. Goal balance ~⅓ per label; hard floor **≥ 20% per label** and
   **no label > 70%** (per spec; I'll aim much tighter than that ceiling).
 - **Underrepresented labels:** `analysis` is the rarest in the wild (substantive comments are
@@ -137,6 +140,36 @@ This project generates little code, so AI tools help at three specific points:
 
 ## 7. Hard annotation decisions
 
-> Filled during Milestone 3 as genuinely difficult cases come up (≥ 3 required).
+Final dataset: **212 examples**, distribution **analysis 72 (34%) / hot_take 70 (33%) /
+reaction 70 (33%)** — well within the spec's ≤70% ceiling and ≥20% floor. The genuinely
+difficult cases I had to rule on (these are the ones where my judgment overrode the heuristic
+pre-label; full text in `data/takemeter_dataset.csv`, flagged in the `notes` column):
 
-_(pending data collection)_
+1. **Roster-construction argument that *sounds* like a hot take** — a long Bucks comment that
+   repeatedly says "washed" (Middleton, Lopez) and reads like venting, but is actually a
+   structured argument: it cites injuries, the CBA, contract situations, and reasons through
+   why no coach was getting that roster past the second round. The cue words screamed
+   `hot_take`; the *structure* is `analysis`. → **analysis**. Rule applied: judge the
+   reasoning structure, not the vocabulary.
+
+2. **Emotional opener wrapping an unsupported claim** — "Are you kidding me? Murray has been
+   elite this series, Gordon has been insanely clutch, and Strawther just won them this game."
+   Starts like a `reaction` (caps-adjacent outburst) but the body is a string of evaluative
+   claims with no evidence — it's defending players by assertion. → **hot_take**. Rule:
+   if the emotional frame is removed and an unsupported evaluative claim remains, it's a take.
+
+3. **Hype that *looks* like analysis** — a long Mavs/Cooper-Flagg comment with a "redemption
+   arc" narrative and a list of Flagg's traits. It has the length and structure of an argument,
+   but every "point" is hype adjectives ("elite two-way potential, insane IQ") with zero
+   evidence, and the whole thing is celebrating a draft result in the moment. → **reaction**.
+   Rule: decorative reasoning in service of an in-the-moment feeling is still `reaction`.
+
+4. **The single-stat gotcha** (per §3 rule) — short comments citing one cherry-picked stat
+   with accusatory framing (e.g. SGA/Jokic FTA-disparity one-liners) were labeled by whether
+   the stat actually *supports an argument* (→ analysis) or is *decorative ammunition*
+   (→ hot_take). Most one-stat zingers landed as `hot_take`.
+
+**Annotation process:** heuristic pre-label (keyword/length/style rules in `prelabel.py`) →
+I read every candidate and corrected the label by hand → balanced selection in
+`build_dataset.py`. Pre-labels were never trusted unread; the four reclassifications above are
+where review changed the heuristic's guess. (Disclosed in README AI-usage.)
